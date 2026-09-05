@@ -1,6 +1,9 @@
+diff --git a/packages/goal/goal-round-driver/src/index.ts b/packages/goal/goal-round-driver/src/index.ts
+index 0074c5178d..ceee27c978 100644
 --- a/packages/goal/goal-round-driver/src/index.ts
 +++ b/packages/goal/goal-round-driver/src/index.ts
-@@ -423,12 +423,18 @@ export function apply(ctx: Context): void {
+@@ -426,10 +426,22 @@ export function apply(ctx: Context): void {
+     })
  
      // Loading a lifecycle driver over existing agents never inherits hidden
 -    // automatic authority from an earlier producer instance.

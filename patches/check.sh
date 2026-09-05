@@ -8,7 +8,9 @@ CHECKOUT="${1:?usage: check.sh <checkout>}"
 echo "== 金柝补丁检查：$CHECKOUT"
 
 # 1. goal-round-driver 重启后无条件 disarm（00:37 事故直接诱因）
-if grep -q "never inherits hidden" "$CHECKOUT/packages/goal/goal-round-driver/src/index.ts" 2>/dev/null; then
+if grep -q "process restart silently disarms" "$CHECKOUT/packages/goal/goal-round-driver/src/index.ts" 2>/dev/null; then
+  echo "[1] goal-restart-disarm        PATCHED   （活跃 goal 在驱动装载时重新武装）"
+elif grep -q "never inherits hidden" "$CHECKOUT/packages/goal/goal-round-driver/src/index.ts" 2>/dev/null; then
   echo "[1] goal-restart-disarm        PRESENT   （重启后 goal 被 disarm，自动轮不再触发）"
 else
   echo "[1] goal-restart-disarm        FIXED"
