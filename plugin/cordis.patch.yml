@@ -1,0 +1,4 @@
+# @shence/jintuo-alerts 插件入口
+- insert:
+    - id: shence-jintuo-alerts
+      name: '@shence/jintuo-alerts'

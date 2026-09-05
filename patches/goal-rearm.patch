@@ -1,0 +1,26 @@
+--- a/packages/goal/goal-round-driver/src/index.ts
++++ b/packages/goal/goal-round-driver/src/index.ts
+@@ -423,12 +423,18 @@ export function apply(ctx: Context): void {
+ 
+     // Loading a lifecycle driver over existing agents never inherits hidden
+-    // automatic authority from an earlier producer instance.
++    // automatic authority from an earlier producer instance — except that a
++    // process restart silently disarms still-active goals (shence-jintuo patch:
++    // 00:37 事故根因)。活跃 goal 在驱动装载时重新武装；其余保持 disarm。
+     for (const agent of ctx.agents.list()) {
+       const state = stateFor(agent)
+-      disarm(state)
++      const goal = ctx.goals.get(agent)
++      if (goal !== undefined && goal.phase === 'active') {
++        try {
++          ctx.goals.resume(agent, goalRef(goal))
++        } catch (error: unknown) {
++          ctx.logger.warn(`goal-round-driver: could not re-arm goal for agent "${agent.id}" after driver load: ${renderThrown(error)}`)
++          disarm(state)
++        }
++      } else {
++        disarm(state)
++      }
+     }
+ 
+     // Yielded after listener registration, so this close runs first and the

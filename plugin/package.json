@@ -1,0 +1,23 @@
+{
+  "name": "@shence/jintuo-alerts",
+  "version": "0.1.0",
+  "description": "金柝附属：告警读取插件——尾随 jintuo-alerts.jsonl，向会话投递告警事件并暴露查询工具",
+  "type": "module",
+  "main": "lib/index.js",
+  "files": [
+    "lib",
+    "src",
+    "cordis.patch.yml"
+  ],
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --format=esm --platform=node --packages=external --outfile=lib/index.js"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}
