@@ -79,6 +79,7 @@ restart_child() { # reason
 FAILS=0
 CHILD_PID=""
 CHILD_STARTED=0
+AUDIT_SEEN=0
 launch
 
 while true; do
@@ -93,10 +94,22 @@ while true; do
     continue
   fi
 
-  # 2. 心跳失联（假死/卡死循环也在此覆盖：runner 每 120s 写心跳）
+  # 2. 心跳失联（假死/卡死循环也在此覆盖：runner 每 120s 写心跳）。
+  #    关键：心跳文件不存在 ≠ 假死——启动初期文件还没落盘。只有文件
+  #    曾经出现过，staleness 才有意义；从未出现且超过 GUARD_BOOT_S
+  #    秒，才判定"启动卡死"（run 4 事故：缺失文件被当成 999999s 假死，
+  #    启动风暴杀掉了正在正常工作的主 agent）。
+  if [ -f "$AUDIT_FILE" ]; then
+    AUDIT_SEEN=1
+  fi
   AGE=$(heartbeat_age_s)
-  if [ "$AGE" -gt "$STALE_S" ]; then
+  UPTIME=$(( $(date +%s) - CHILD_STARTED ))
+  if [ "$AUDIT_SEEN" = 1 ] && [ "$AGE" -gt "$STALE_S" ]; then
     restart_child "heartbeat stale for ${AGE}s (> ${STALE_S}s)"
+    continue
+  fi
+  if [ "$AUDIT_SEEN" = 0 ] && [ "$UPTIME" -gt "${GUARD_BOOT_S:-600}" ]; then
+    restart_child "no heartbeat file within ${GUARD_BOOT_S:-600}s (boot wedged)"
     continue
   fi
 
