@@ -96,7 +96,7 @@ while true; do
   USAGE_LINES=$(wc -l < "$DSH_HOME_/storages/llm-usage.jsonl" 2>/dev/null || echo 0)
 
   # 进程存活：找 profile=headless 的战役主进程
-  PROC_N=$(pgrep -f "profile=headless" | wc -l | tr -d " ")
+  PROC_N=$(pgrep -f "bin[.]js --profile" | wc -l | tr -d " ")
 
   printf '{"at":%s,"completed":%s,"score":%s,"containers":%s,"auditAgeS":%s,"procs":%s,"kimiBalance":%s,"dsBalance":%s,"usageLines":%s}\n' \
     "$NOW_MS" "$COMPLETED" "$SCORE" "$CONTAINERS" "$AUDIT_AGE" "$PROC_N" "$KIMI" "$DS" "$USAGE_LINES" >> "$LOG"
