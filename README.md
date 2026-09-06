@@ -10,6 +10,11 @@
   行逃逸副本（每分钟落普通文件，扛 VM 重启）。
   - 配置：`JINTUO_DSH_HOME / JINTUO_WORKDIR / JINTUO_PORT / JINTUO_HEAP_MB /
     JINTUO_SAMPLE_S / JINTUO_WARN_MB / JINTUO_ALERT_FILE / JINTUO_NO_OPEN`（均有默认）。
+- `guard-runner.sh` —— 校场 L4 跑分进程守护（2026-09-06）：进程死亡→重拉（同一命令，
+  `xiaochang_start` 按快照续跑）；心跳失联→判定假死杀重拉（卡死循环也覆盖）；内存
+  超限只告警；5 连快速失败放弃。混沌测试 2/2（kill -9 重拉 + 19s stale 重拉，告警落盘）。
+  - 配置：`GUARD_DSH_HOME / GUARD_CMD(必填) / GUARD_AUDIT_FILE / GUARD_STALE_S /
+    GUARD_HEAP_MB / GUARD_SAMPLE_S / GUARD_ALERT_FILE / GUARD_WORKDIR / GUARD_STDOUT`。
 - `plugin/` —— 告警读取插件（@shence/jintuo-alerts）：尾随告警文件，投递 `jintuo/alert`
   事件并注册 `jintuo_alerts` 工具供模型查询实例健康。
 - `patches/check.sh` —— 目标 checkout 三个已知问题的存在性检查（goal-restart-disarm、
