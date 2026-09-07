@@ -40,7 +40,11 @@ alert() { # kind summary [detail]
 log() { echo "$(date '+%F %T') guard-runner: $*" >> "$LOG"; }
 
 launch() {
-  ( cd "${GUARD_WORKDIR:-/home/zrn/xiaochang-work}" && eval "$CMD" >>"${GUARD_STDOUT:-/tmp/guard-runner-cmd.log}" 2>&1 ) &
+  # F16：重启后旧审计文件的 mtime 属于上一任子进程——新子进程必须重新获得
+  # 完整 boot 宽限（GUARD_BOOT_S），否则 stale-kill 后每 20-30s 连杀新进程（风暴）。
+  AUDIT_SEEN=0
+  # F17：setsid 建独立进程组，restart_child 按组杀，不留 node 孤儿。
+  setsid bash -c 'cd "${GUARD_WORKDIR:-/home/zrn/xiaochang-work}" && eval "$GUARD_CMD"' >>"${GUARD_STDOUT:-/tmp/guard-runner-cmd.log}" 2>&1 &
   CHILD_PID=$!
   CHILD_STARTED=$(date +%s)
   log "launched cmd pid=$CHILD_PID"
@@ -56,10 +60,12 @@ heartbeat_age_s() {
 
 restart_child() { # reason
   local reason="$1"
+  # F17：按进程组杀（setsid 组杀）——只杀包装层会留下 node 孤儿进程，
+  # 与重启后的新 agent 并发跑、互相抢会话锁/烧钱（run 6 实锤：stale-kill 后 12562 存活）。
   if [ -n "${CHILD_PID:-}" ] && kill -0 "$CHILD_PID" 2>/dev/null; then
-    kill "$CHILD_PID" 2>/dev/null
+    kill -- -"$CHILD_PID" 2>/dev/null
     sleep 2
-    kill -9 "$CHILD_PID" 2>/dev/null
+    kill -9 -- -"$CHILD_PID" 2>/dev/null
   fi
   FAILS=$((FAILS + 1))
   if [ "$FAILS" -ge 5 ]; then
