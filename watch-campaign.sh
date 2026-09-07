@@ -116,7 +116,11 @@ while true; do
     fi
   fi
   [ "$PROC_N" -eq 0 ] && alert "campaign-driver-down" "no campaign process (profile=headless)" "score=$SCORE"
-  [ "$AUDIT_AGE" -gt "$STALL_S" ] && alert "campaign-audit-stale" "audit file stale ${AUDIT_AGE}s" "score=$SCORE procs=$PROC_N"
+  # 审计文件从未出现前不判 stale（与 guard-runner 的 AUDIT_SEEN 门一致：缺文件≠假死，防启动期误报）
+  if [ -f "$AUDIT_FILE" ] || [ "$AUDIT_SEEN" = "1" ]; then
+    [ "$AUDIT_AGE" -gt "$STALL_S" ] && alert "campaign-audit-stale" "audit file stale ${AUDIT_AGE}s" "score=$SCORE procs=$PROC_N"
+  fi
+  [ -f "$AUDIT_FILE" ] && AUDIT_SEEN=1
   if [ "$KIMI" != "-1" ] && awk "BEGIN{exit !($KIMI < $BALANCE_WARN)}"; then
     alert "balance-low-kimi" "kimi balance ¥$KIMI below ¥$BALANCE_WARN"
   fi
