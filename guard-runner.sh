@@ -101,11 +101,9 @@ while true; do
   fi
 
   # 2. 心跳失联（假死/卡死循环也在此覆盖：runner 每 120s 写心跳）。
-  #    关键：心跳文件不存在 ≠ 假死——启动初期文件还没落盘。只有文件
-  #    曾经出现过，staleness 才有意义；从未出现且超过 GUARD_BOOT_S
-  #    秒，才判定"启动卡死"（run 4 事故：缺失文件被当成 999999s 假死，
-  #    启动风暴杀掉了正在正常工作的主 agent）。
-  if [ -f "$AUDIT_FILE" ]; then
+  #    关键：心跳文件"存在"≠现任子进程写的——重启后旧文件 mtime 属于上一任。
+  #    只有 mtime 晚于本次启动（CHILD_STARTED）才算现任写过；否则用 boot 宽限。
+  if [ -f "$AUDIT_FILE" ] && [ "$(stat -c %Y "$AUDIT_FILE" 2>/dev/null || echo 0)" -ge "$CHILD_STARTED" ]; then
     AUDIT_SEEN=1
   fi
   AGE=$(heartbeat_age_s)
