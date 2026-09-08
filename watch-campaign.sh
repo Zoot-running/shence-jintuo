@@ -10,6 +10,7 @@
 #   WATCH_AUDIT_FILE  审计文件（默认 $WATCH_DSH_HOME/storages/xiaochang-run-audit.jsonl）
 #   WATCH_SAMPLE_S    采样间隔秒（默认 120）
 #   WATCH_STALL_S     得分停滞告警阈值秒（默认 1500=25min）
+#   WATCH_IDLE_S      槽位闲置告警阈值秒（默认 900=15min）：容器未满且无派单/终态活动
 #   WATCH_BALANCE_WARN 余额告警阈值 ¥（默认 40）
 #   WATCH_LOG         采样日志（默认 $WATCH_DSH_HOME/storages/campaign-watch.jsonl）
 #   WATCH_ALERT_FILE  告警文件（默认 $WATCH_DSH_HOME/storages/jintuo-alerts.jsonl）
@@ -22,6 +23,7 @@ BASE_URL="${WATCH_BASE_URL:-https://tsecbench.zc.tencent.com}"
 AUDIT_FILE="${WATCH_AUDIT_FILE:-$DSH_HOME_/storages/xiaochang-run-audit.jsonl}"
 SAMPLE_S="${WATCH_SAMPLE_S:-120}"
 STALL_S="${WATCH_STALL_S:-1500}"
+IDLE_S="${WATCH_IDLE_S:-900}"
 BALANCE_WARN="${WATCH_BALANCE_WARN:-40}"
 LOG="${WATCH_LOG:-$DSH_HOME_/storages/campaign-watch.jsonl}"
 ALERT_FILE="${WATCH_ALERT_FILE:-$DSH_HOME_/storages/jintuo-alerts.jsonl}"
@@ -40,6 +42,34 @@ alert() { # kind summary [detail]
 LAST_SCORE=""
 LAST_SCORE_AT=0
 STALL_ALERTED=0
+
+# 槽位闲置检测（F19 兜底告警）：审计里除 heartbeat 外的"活动行"（enqueue/dispatch/terminal/
+# verdict/container-*）是否新增。主 agent 深挖漂移时并行机闲置 → 提醒（只告警不代决策）。
+AUDIT_OFFSET=0
+LAST_ACTIVITY_AT=0
+IDLE_ALERTED=0
+
+scan_activity() { # 增量读审计新行；有非 heartbeat 新行输出 1，否则空
+  if [ ! -f "$AUDIT_FILE" ]; then
+    AUDIT_OFFSET=0
+    return
+  fi
+  local size
+  size=$(wc -c < "$AUDIT_FILE" | tr -d ' ')
+  if [ "$size" -lt "$AUDIT_OFFSET" ]; then
+    # 文件被轮换/截断（新 run 新审计文件）：重置游标。
+    AUDIT_OFFSET=0
+  fi
+  local active=""
+  while IFS= read -r line; do
+    case "$line" in
+      *'"type":"heartbeat"'*) continue ;;
+      *) active=1 ;;
+    esac
+  done < <(tail -c +$((AUDIT_OFFSET + 1)) "$AUDIT_FILE" 2>/dev/null)
+  AUDIT_OFFSET=$size
+  [ -n "$active" ] && echo 1
+}
 
 platform() { # → "completed score containers"
   curl -s -m 15 -H "BENCHMARK_TOKEN: $TOKEN" "$BASE_URL/openapi/v1/challenges" \
@@ -121,6 +151,21 @@ while true; do
     [ "$AUDIT_AGE" -gt "$STALL_S" ] && alert "campaign-audit-stale" "audit file stale ${AUDIT_AGE}s" "score=$SCORE procs=$PROC_N"
   fi
   [ -f "$AUDIT_FILE" ] && AUDIT_SEEN=1
+  # 槽位闲置告警（F19 兜底）：容器未满 + 长时间无派单/终态活动 + 战役在跑 → 提醒主 agent
+  # 可能深挖漂移、并行机空转（只告警不代决策，与金柝原则一致）。
+  if [ "$SCORE" != "-1" ] && [ "$CONTAINERS" != "-1" ]; then
+    if [ -n "$(scan_activity)" ]; then
+      LAST_ACTIVITY_AT=$(($(date +%s%N) / 1000000))
+      IDLE_ALERTED=0
+    fi
+    if [ "$CONTAINERS" -lt 3 ] && [ "$LAST_ACTIVITY_AT" != 0 ]; then
+      IDLE=$(( $(date +%s%N) / 1000000 - LAST_ACTIVITY_AT ))
+      if [ "$IDLE" -gt $((IDLE_S * 1000)) ] && [ "$IDLE_ALERTED" = 0 ]; then
+        alert "campaign-idle" "no dispatch/terminal activity for $((IDLE/60000))min with $CONTAINERS/3 containers open" "score=$SCORE procs=$PROC_N"
+        IDLE_ALERTED=1
+      fi
+    fi
+  fi
   if [ "$KIMI" != "-1" ] && awk "BEGIN{exit !($KIMI < $BALANCE_WARN)}"; then
     alert "balance-low-kimi" "kimi balance ¥$KIMI below ¥$BALANCE_WARN"
   fi
