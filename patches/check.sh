@@ -28,4 +28,11 @@ grep -q "max-old-space-size" "$CHECKOUT/package.json" 2>/dev/null \
   && echo "[3] heap-cap-declared          PRESENT   （宿主 package.json 声明了堆上限，请勿双写）" \
   || echo "[3] heap-cap-declared          ABSENT    （由金柝启动器 JINTUO_HEAP_MB 管控）"
 
+# 4. dev home 隔离（9/8 生产凭据污染事故：dev checkout 默认 home 必须是 ~/.dsh-dev）
+if grep -q 'DSH_HOME_DIR_NAME = ".dsh-dev"' "$CHECKOUT/packages/util/home-paths/lib/index.js" 2>/dev/null; then
+  echo "[4] dev-default-home           PATCHED   （dev checkout 默认 home = ~/.dsh-dev）"
+else
+  echo "[4] dev-default-home           PRESENT   （默认 home = ~/.dsh，裸跑 dev CLI 会落生产 home——应用 dev-default-home.patch）"
+fi
+
 echo "== 完成"

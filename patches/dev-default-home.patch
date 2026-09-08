@@ -1,0 +1,29 @@
+# SHENCE/dev-home-isolation（2026-09-08 生产凭据污染事故根治）
+# 目标 checkout：/mnt/d/Software/WSLSoftware/Agents/deepseek-harness-dev
+# 应用：cd <checkout> && git apply ../shence-jintuo/patches/dev-default-home.patch
+# （若 checkout 不跟踪 lib 文件，直接手工把两处 ".dsh" 默认值改为 ".dsh-dev"）
+# 作用：dev checkout 的默认 DSH home 从 ~/.dsh 改为 ~/.dsh-dev——
+#       裸跑 dev CLI（未 export DSH_HOME）再也不可能落进生产 home 覆写生产凭据。
+# 显式 DSH_HOME 环境变量仍然最高优先，行为向后兼容。
+# 注意：上游重建/重装 checkout 后此补丁需重新应用（check.sh 增加第 4 项检查）。
+diff --git a/packages/util/home-paths/lib/index.js b/packages/util/home-paths/lib/index.js
+index 0000000..1111111 100644
+--- a/packages/util/home-paths/lib/index.js
++++ b/packages/util/home-paths/lib/index.js
+@@ -8,7 +8,7 @@
+ /** Directory name for the default DeepSeek Harness home under the OS home. */
+-const DSH_HOME_DIR_NAME = ".dsh";
++const DSH_HOME_DIR_NAME = ".dsh-dev"; // SHENCE/dev-home-isolation: dev 默认 home 绝不落 ~/.dsh
+ /** Stable user-facing display form for the default DeepSeek Harness home. */
+ const DEFAULT_DSH_HOME_DISPLAY = `~/${DSH_HOME_DIR_NAME}`;
+ /** Environment variable that overrides the default DeepSeek Harness home. */
+diff --git a/packages/util/home-paths/lib/types/index.js b/packages/util/home-paths/lib/types/index.js
+index 0000000..2222222 100644
+--- a/packages/util/home-paths/lib/types/index.js
++++ b/packages/util/home-paths/lib/types/index.js
+@@ -7,7 +7,7 @@
+ /** Directory name for the default DeepSeek Harness home under the OS home. */
+-export const DSH_HOME_DIR_NAME = '.dsh';
++export const DSH_HOME_DIR_NAME = '.dsh-dev'; // SHENCE/dev-home-isolation
+ /** Stable user-facing display form for the default DeepSeek Harness home. */
+ export const DEFAULT_DSH_HOME_DISPLAY = `~/${DSH_HOME_DIR_NAME}`;
