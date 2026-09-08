@@ -42,6 +42,7 @@ alert() { # kind summary [detail]
 LAST_SCORE=""
 LAST_SCORE_AT=0
 STALL_ALERTED=0
+AUDIT_SEEN=0
 
 # 槽位闲置检测（F19 兜底告警）：审计里除 heartbeat 外的"活动行"（enqueue/dispatch/terminal/
 # verdict/container-*）是否新增。主 agent 深挖漂移时并行机闲置 → 提醒（只告警不代决策）。
