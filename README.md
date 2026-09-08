@@ -34,3 +34,22 @@
 JINTUO_WORKDIR=/path/to/deepseek-harness bash jintuo.sh
 # dev 实例当前即由金柝守护（端口 3081，堆 2GB）
 ```
+
+## 9/8 事故补遗：战役启动器的 home 隔离红线（2026-09-08）
+
+校场战役启动器**必须**硬校验 DSH_HOME（run 6 事故：漏设 DSH_HOME → 新版 CLI 默认落生产
+home ~/.dsh → 用新格式覆写 ~/.dsh/.credentials.yaml → 生产 web 旧 parser 崩溃）：
+
+```bash
+# 启动器第一段（campaign-launch 脚本模板）
+REQUIRED_HOME=/home/zrn/.dsh-dev
+if [ "${DSH_HOME:-}" != "$REQUIRED_HOME" ] || [ ! -d "$REQUIRED_HOME" ]; then
+  echo "FATAL: DSH_HOME must be $REQUIRED_HOME (campaign home isolation); got '${DSH_HOME:-<unset>}'" >&2
+  exit 2
+fi
+export DSH_HOME=$REQUIRED_HOME
+```
+
+原理：DSH 凭据文件格式存在版本错位——生产（旧 parser）只认扁平映射
+`DEEPSEEK_API_KEY: sk-...`（无 version/包装层，非字符串值一律拒绝）；新版运行时会写
+`{version:1, refs:{...}}`。两个 home 的凭据文件必须彻底分开。
