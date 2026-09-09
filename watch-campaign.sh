@@ -43,6 +43,7 @@ LAST_SCORE=""
 LAST_SCORE_AT=0
 STALL_ALERTED=0
 AUDIT_SEEN=0
+WATCH_STARTED_AT=$(date +%s)
 
 # 槽位闲置检测（F19 兜底告警）：审计里除 heartbeat 外的"活动行"（enqueue/dispatch/terminal/
 # verdict/container-*）是否新增。主 agent 深挖漂移时并行机闲置 → 提醒（只告警不代决策）。
@@ -147,8 +148,10 @@ while true; do
     fi
   fi
   [ "$PROC_N" -eq 0 ] && alert "campaign-driver-down" "no campaign process (profile=headless)" "score=$SCORE"
-  # 审计文件从未出现前不判 stale（与 guard-runner 的 AUDIT_SEEN 门一致：缺文件≠假死，防启动期误报）
-  if [ -f "$AUDIT_FILE" ] || [ "$AUDIT_SEEN" = "1" ]; then
+  # 审计文件从未出现前不判 stale（与 guard-runner 的 AUDIT_SEEN 门一致：缺文件≠假死，防启动期误报）。
+  # F26：仅当审计文件在本 watch 启动后被触碰过才判 stale——跨 run 残留的旧审计文件
+  # 会在首样本误报"万年 stale"（run 8 实测 76123s 误报）；进程死亡由 campaign-driver-down 兜底。
+  if [ -f "$AUDIT_FILE" ] && [ "$(stat -c %Y "$AUDIT_FILE" 2>/dev/null || echo 0)" -ge "$WATCH_STARTED_AT" ]; then
     [ "$AUDIT_AGE" -gt "$STALL_S" ] && alert "campaign-audit-stale" "audit file stale ${AUDIT_AGE}s" "score=$SCORE procs=$PROC_N"
   fi
   [ -f "$AUDIT_FILE" ] && AUDIT_SEEN=1
