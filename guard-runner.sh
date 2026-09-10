@@ -96,6 +96,13 @@ while true; do
     wait "$CHILD_PID" 2>/dev/null
     CODE=$?
     UPTIME=$(( $(date +%s) - CHILD_STARTED ))
+    # B1（run 8 实证）：exit 0 = 战役正常收官（finish 停表后自然退出）——不再重拉。
+    # 否则会空转复验会话（run 8 收官后 S2/S3/S4 空转 ~35min 直到 5 连败）。
+    if [ "$CODE" = 0 ]; then
+      echo "$(date '+%F %T') guard-runner: child exited 0 after ${UPTIME}s — normal completion, standing down" >> "$LOG"
+      alert "runner-completed" "runner exited 0 (normal completion) after ${UPTIME}s — guard standing down" "pid=$CHILD_PID"
+      exit 0
+    fi
     restart_child "process exited code=$CODE uptime=${UPTIME}s"
     continue
   fi
