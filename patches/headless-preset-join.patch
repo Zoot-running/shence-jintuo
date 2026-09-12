@@ -1,0 +1,31 @@
+diff --git a/packages/bundle/headless/src/index.ts b/packages/bundle/headless/src/index.ts
+index 50a5c664be..e2cf1f2d91 100644
+--- a/packages/bundle/headless/src/index.ts
++++ b/packages/bundle/headless/src/index.ts
+@@ -177,10 +177,12 @@ async function run(ctx: Context, task: string, io: HeadlessIo): Promise<void> {
+   if (agents === undefined || defaultModel === undefined || sessions === undefined) return
+ 
+   const selection = defaultModel.currentSelection()
+-  // This bundle composes no preset roster, so the model-facing rows sit in the
+-  // host plane and the agent reads them from the global layer. A deployment
+-  // that DOES configure one has to join it here first
+-  // (@deepseek-ai/dsh-agent-presets README, "Composing a child agent").
++  // SPIKE (methodology POC): join the session to an agent preset when the host
++  // composition mounts a roster. DSH_PRESET names the preset; unset = join none
++  // (rosterless behaviour unchanged). A broken/unknown preset rejects here and
++  // rolls the agent creation back.
++  const agentPresets = ctx.get('agentPresets')
++  const wantedPreset = process.env.DSH_PRESET ?? undefined
+   const { agent } = await agents.create({
+     sessionId: brandString<SessionId>(`session-${randomUUID()}`),
+     meta: { cwd: process.cwd() },
+@@ -188,6 +190,9 @@ async function run(ctx: Context, task: string, io: HeadlessIo): Promise<void> {
+     setup: (agentCtx) => {
+       const selected: ModelSelectionRef = { current: selection, assembled: undefined }
+       installModelSelection(agentCtx, selected)
++      if (agentPresets !== undefined && wantedPreset !== undefined) {
++        void agentPresets.mount(agentCtx, wantedPreset)
++      }
+     },
+   })
+   await agent.whenIdle()
