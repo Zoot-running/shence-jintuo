@@ -30,7 +30,7 @@
 
   1) GET {BASE}/api/v1/runs/{run_id}/llm/sessions?page=N&page_size=50
      -> {"items":[session...], "pagination":{page,page_size,total,total_pages}}
-     session 字段（全部可选）：id, group_id, task_code, model, protocol, status,
+     session 字段（全部可选）：session_id(列表层)/id(详情层), group_id, task_code, model, protocol, status,
        closed_reason, first_captured_at, last_active_at, event_count, range_call_count,
        explicit_id, title, working_directory, usage{cache_read,cache_write,input,output,reasoning}
 
@@ -57,6 +57,8 @@
   * step_usage / usage-summary 中的 usage 一律归一化为 5 个整数字段
   * 单会话拉取失败不中断全量：warning 到 stderr，继续下一个；HTTP 请求重试一次
 """
+
+TEXT_KINDS = {'text', 'assistant_text', 'user_text'}
 
 import argparse
 import datetime
@@ -476,7 +478,7 @@ def fetch_sessions(transport, run_id, page_size=PAGE_SIZE_DEFAULT):
 
 def fetch_session_detail(transport, transport_session, run_id, page_size=PAGE_SIZE_DEFAULT):
     """拉取单会话全部 steps，并返回 (steps, detail_session, warnings)。"""
-    sid = transport_session.get("id")
+    sid = transport_session.get("session_id") or transport_session.get("id")
     frm = iso_shift(transport_session.get("first_captured_at"), -60)
     to = iso_shift(transport_session.get("last_active_at"), 60)
     msgs = []
@@ -511,7 +513,7 @@ def build_timeline(sessions_steps):
     """sessions_steps: [(session, steps)] -> list[dict]（每条 item 一行）。"""
     rows = []
     for session, steps in sessions_steps:
-        sid = session.get("id")
+        sid = session.get("session_id") or session.get("id")
         for step in steps:
             step_usage = norm_usage(step.get("usage") if isinstance(step, dict) else None)
             for item in step_items(step):
@@ -538,7 +540,7 @@ def build_file_tree(sessions_steps):
     write_events = []
 
     for session, steps in sessions_steps:
-        sid = session.get("id")
+        sid = session.get("session_id") or session.get("id")
         wd = session.get("working_directory")
         for step in steps:
             captured_at = step.get("captured_at")
@@ -604,7 +606,7 @@ def build_deliverables(sessions_steps):
         last = None
         for step in steps:
             for item in step_items(step):
-                if item.get("role") != "assistant" or item.get("kind") != "text":
+                if item.get("role") != "assistant" or item.get("kind") not in TEXT_KINDS:
                     continue
                 if item_char_len(item) < DELIVERABLE_MIN_CHARS:
                     continue
@@ -613,7 +615,7 @@ def build_deliverables(sessions_steps):
             continue
         step, item = last
         picked.append({
-            "sid": session.get("id"),
+            "sid": session.get("session_id") or session.get("id"),
             "model": session.get("model"),
             "captured_at": step.get("captured_at"),
             "seq": step.get("seq"),
@@ -756,7 +758,7 @@ def run(args):
         sessions_steps = [(s, []) for s in sessions]
     else:
         for idx, session in enumerate(sessions, 1):
-            sid = session.get("id")
+            sid = session.get("session_id") or session.get("id")
             if sid is None:
                 msg = "session #%d has no id, skipped" % idx
                 warn(msg)
